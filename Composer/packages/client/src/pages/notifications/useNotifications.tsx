@@ -3,8 +3,15 @@
 
 import { useMemo } from 'react';
 import get from 'lodash/get';
+import { useRecoilValue } from 'recoil';
 
-import { useStoreContext } from '../../hooks/useStoreContext';
+import {
+  dialogsState,
+  luFilesState,
+  lgFilesState,
+  projectIdState,
+  BotDiagnosticsState,
+} from '../../recoilModel/atoms/botState';
 
 import {
   Notification,
@@ -17,8 +24,12 @@ import {
 import { getReferredLuFiles } from './../../utils/luUtil';
 
 export default function useNotifications(filter?: string) {
-  const { state } = useStoreContext();
-  const { dialogs, luFiles, lgFiles, qnaFiles, projectId, diagnostics } = state;
+  const dialogs = useRecoilValue(dialogsState);
+  const luFiles = useRecoilValue(luFilesState);
+  const qnaFiles = useRecoilValue(qnaFilesState);
+  const projectId = useRecoilValue(projectIdState);
+  const lgFiles = useRecoilValue(lgFilesState);
+  const diagnostics = useRecoilValue(BotDiagnosticsState);
   const memoized = useMemo(() => {
     const notifications: Notification[] = [];
     diagnostics.forEach((d) => {

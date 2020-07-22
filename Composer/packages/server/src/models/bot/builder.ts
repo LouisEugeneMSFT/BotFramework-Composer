@@ -214,7 +214,7 @@ export class Builder {
       config.botName,
       config.suffix,
       config.fallbackLocal,
-      false,
+      true,
       false,
       loadResult.multiRecognizers,
       loadResult.settings,

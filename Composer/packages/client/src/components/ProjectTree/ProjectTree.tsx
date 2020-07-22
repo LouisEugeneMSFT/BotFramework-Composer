@@ -2,8 +2,8 @@
 // Licensed under the MIT License.
 
 /** @jsx jsx */
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { jsx, css } from '@emotion/core';
-import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
 import {
   GroupedList,
   IGroup,
@@ -18,6 +18,7 @@ import formatMessage from 'format-message';
 import { DialogInfo, ITrigger } from '@bfc/shared';
 import { Resizable, ResizeCallback } from 're-resizable';
 import debounce from 'lodash/debounce';
+import { useRecoilValue } from 'recoil';
 import { IGroupedListStyles } from 'office-ui-fabric-react/lib/GroupedList';
 import { ISearchBoxStyles } from 'office-ui-fabric-react/lib/SearchBox';
 
@@ -29,6 +30,7 @@ import {
   onChooseIntentKey,
   qnaMatcherKey,
 } from '../../utils/dialogUtil';
+import { dispatcherState, userSettingsState } from '../../recoilModel';
 
 import { TreeItem } from './treeItem';
 
@@ -137,12 +139,9 @@ interface IProjectTreeProps {
 }
 
 export const ProjectTree: React.FC<IProjectTreeProps> = (props) => {
-  const {
-    actions: { onboardingAddCoachMarkRef, updateUserSettings },
-    state: {
-      userSettings: { dialogNavWidth: currentWidth },
-    },
-  } = useContext(StoreContext);
+  const { onboardingAddCoachMarkRef, updateUserSettings } = useRecoilValue(dispatcherState);
+  const { dialogNavWidth: currentWidth } = useRecoilValue(userSettingsState);
+
   const groupRef: React.RefObject<IGroupedList> = useRef(null);
   const { dialogs, dialogId, selected, onSelect, onDeleteTrigger, onDeleteDialog } = props;
   const [filter, setFilter] = useState('');

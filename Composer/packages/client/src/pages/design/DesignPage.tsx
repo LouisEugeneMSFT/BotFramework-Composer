@@ -14,6 +14,7 @@ import { DialogFactory, SDKKinds, DialogInfo, PromptTab } from '@bfc/shared';
 import { ActionButton, Button } from 'office-ui-fabric-react/lib/Button';
 import { JsonEditor } from '@bfc/code-editor';
 import { useTriggerApi } from '@bfc/extension';
+import { useRecoilValue } from 'recoil';
 
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { TestController } from '../../components/TestController/TestController';
@@ -24,13 +25,29 @@ import { Conversation } from '../../components/Conversation';
 import { dialogStyle } from '../../components/Modal/dialogStyle';
 import { OpenConfirmModal } from '../../components/Modal/ConfirmDialog';
 import { ProjectTree } from '../../components/ProjectTree/ProjectTree';
+import { undoHistory } from '../../recoilModel/undo';
 import { ToolBar, IToolBarItem } from '../../components/ToolBar';
 import { clearBreadcrumb } from '../../utils/navigation';
-import undoHistory from '../../store/middlewares/undo/history';
 import { navigateTo } from '../../utils/navigation';
 import { useShell } from '../../shell';
 import { useStoreContext } from '../../hooks/useStoreContext';
 import { regexRecognizerKey, onChooseIntentKey, qnaMatcherKey } from '../../utils/dialogUtil';
+import {
+  dialogsState,
+  projectIdState,
+  schemasState,
+  showCreateDialogModalState,
+  dispatcherState,
+  displaySkillManifestState,
+  breadcrumbState,
+  visualEditorSelectionState,
+  focusPathState,
+  designPageLocationState,
+  showAddSkillDialogModalState,
+  skillsState,
+  actionsSeedState,
+  userSettingsState,
+} from '../../recoilModel';
 
 import { VisualEditorAPI } from './FrameAPI';
 import {
@@ -115,31 +132,39 @@ const getTabFromFragment = () => {
 };
 
 const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: string }>> = (props) => {
-  const { state, actions } = useStoreContext();
+  const dialogs = useRecoilValue(dialogsState);
+  const projectId = useRecoilValue(projectIdState);
+  const schemas = useRecoilValue(schemasState);
+  const displaySkillManifest = useRecoilValue(displaySkillManifestState);
+  const breadcrumb = useRecoilValue(breadcrumbState);
+  const visualEditorSelection = useRecoilValue(visualEditorSelectionState);
+  const focusPath = useRecoilValue(focusPathState);
+  const designPageLocation = useRecoilValue(designPageLocationState);
+  const showCreateDialogModal = useRecoilValue(showCreateDialogModalState);
+  const showAddSkillDialogModal = useRecoilValue(showAddSkillDialogModalState);
+  const skills = useRecoilValue(skillsState);
+  const actionsSeed = useRecoilValue(actionsSeedState);
+  const userSettings = useRecoilValue(userSettingsState);
   const {
-    dialogs,
-    displaySkillManifest,
-    breadcrumb,
-    visualEditorSelection,
-    projectId,
-    schemas,
-    focusPath,
-    designPageLocation,
-    userSettings,
-  } = state;
-  const {
-    dismissManifestModal,
     removeDialog,
+    updateDialog,
+    createDialogCancel,
+    createDialogBegin,
+    createDialog,
+    dismissManifestModal,
     setDesignPageLocation,
     navTo,
     selectTo,
-    setectAndfocus,
-    updateDialog,
-    clearUndoHistory,
-    createDialogBegin,
+    selectAndFocus,
+    addSkillDialogCancel,
+    updateLuFile,
+    updateQnaFile,
+    updateSkill,
     exportToZip,
     onboardingAddCoachMarkRef,
-  } = actions;
+    openRecognizerDropdown,
+  } = useRecoilValue(dispatcherState);
+
   const { location, dialogId } = props;
   const params = new URLSearchParams(location?.search);
   const selected = params.get('selected') || '';
@@ -179,10 +204,9 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
       setDesignPageLocation({
         dialogId: dialogId,
         projectId: projectId,
-        selected: params.get('selected'),
-        focused: params.get('focused'),
+        selected: params.get('selected') ?? '',
+        focused: params.get('focused') ?? '',
         breadcrumb: location.state ? location.state.breadcrumb || [] : [],
-        onBreadcrumbItemClick: handleBreadcrumbItemClick,
         promptTab: getTabFromFragment(),
       });
       /* eslint-disable no-underscore-dangle */
@@ -191,7 +215,7 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
       /* eslint-enable */
     } else {
       //leave design page should clear the history
-      clearUndoHistory();
+      // clearUndoHistory(); //TODO: undo/redo
     }
   }, [location]);
 
@@ -208,7 +232,7 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
           styles={changeRecognizerButton}
           text={formatMessage('Change Recognizer')}
           onClick={() => {
-            actions.openRecognizerDropdown();
+            openRecognizerDropdown();
           }}
         />
         <Icon iconName={'Cancel'} style={warningIcon} onClick={() => setShowWarning(false)} />
@@ -236,7 +260,7 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
         content: luFile.content,
         projectId,
       };
-      actions.updateLuFile(luFilePayload);
+      updateLuFile(luFilePayload);
     }
 
     if (qnaFile) {
@@ -245,25 +269,25 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
         content: qnaFile.content,
         projectId,
       };
-      await actions.updateQnaFile(qnaFilePayload);
+      await updateQnaFile(qnaFilePayload);
     }
 
     const index = get(dialog, 'content.triggers', []).length - 1;
-    actions.selectTo(`triggers[${index}]`);
-    actions.updateDialog(dialogPayload);
+    selectTo(`triggers[${index}]`);
+    updateDialog(dialogPayload);
   };
 
   function handleSelect(id, selected = '') {
     if (selected) {
       selectTo(selected);
     } else {
-      navTo(id);
+      navTo(id, []);
     }
   }
 
   const onCreateDialogComplete = (newDialog) => {
     if (newDialog) {
-      navTo(newDialog);
+      navTo(newDialog, []);
     }
   };
 
@@ -325,7 +349,7 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
             text: formatMessage('Undo'),
             disabled: !undoHistory.canUndo(),
             onClick: () => {
-              actions.undo();
+              //ToDo undo
             },
           },
           {
@@ -333,7 +357,7 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
             text: formatMessage('Redo'),
             disabled: !undoHistory.canRedo(),
             onClick: () => {
-              actions.redo();
+              //ToDo redo
             },
           },
           {
@@ -436,7 +460,7 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
   function handleBreadcrumbItemClick(_event, item) {
     if (item) {
       const { dialogId, selected, focused, index } = item;
-      setectAndfocus(dialogId, selected, focused, clearBreadcrumb(breadcrumb, index));
+      selectAndFocus(dialogId, selected, focused, clearBreadcrumb(breadcrumb, index));
     }
   }
 
@@ -483,21 +507,20 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
     );
   }, [dialogs, breadcrumb, dialogJsonVisible]);
 
-  async function handleAddSkillDialogSubmit(skillData: { manifestUrl: string }) {
-    await actions.updateSkill({ projectId, targetId: -1, skillData });
+  function handleAddSkillDialogSubmit(skillData: { manifestUrl: string }) {
+    updateSkill({ projectId, targetId: -1, skillData });
   }
 
-  async function handleCreateDialogSubmit(data: { name: string; description: string }) {
+  function handleCreateDialogSubmit(data: { name: string; description: string }) {
     const seededContent = new DialogFactory(schemas.sdk?.content).create(SDKKinds.AdaptiveDialog, {
       $designer: { name: data.name, description: data.description },
       generator: `${data.name}.lg`,
       recognizer: `${data.name}.lu.qna`,
     });
     if (seededContent.triggers?.[0]) {
-      seededContent.triggers[0].actions = state.actionsSeed;
+      seededContent.triggers[0].actions = actionsSeed;
     }
-
-    await actions.createDialog({ id: data.name, content: seededContent });
+    createDialog({ id: data.name, content: seededContent });
   }
 
   async function handleDeleteDialog(id) {
@@ -521,7 +544,7 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
     const result = await OpenConfirmModal(title, subTitle, setting);
 
     if (result) {
-      await removeDialog(id, projectId);
+      removeDialog(id);
     }
   }
 
@@ -529,7 +552,7 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
     const content = deleteTrigger(dialogs, id, index, (trigger) => triggerApi.deleteTrigger(id, trigger));
 
     if (content) {
-      await updateDialog({ id, projectId, content });
+      await updateDialog({ id, content });
       const match = /\[(\d+)\]/g.exec(selected);
       const current = match && match[1];
       if (!current) return;
@@ -540,7 +563,7 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
           selectTo(createSelectedPath(currentIdx - 1));
         } else {
           //if the deleted node is selected and the selected one is the first one, navTo the first trigger;
-          navTo(id);
+          navTo(id, []);
         }
       } else if (index < currentIdx) {
         //if the deleted node is at the front, navTo the current one;
@@ -593,7 +616,7 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
                     schema={schemas.sdk.content}
                     value={currentDialog.content || undefined}
                     onChange={(data) => {
-                      actions.updateDialog({ id: currentDialog.id, projectId, content: data });
+                      updateDialog({ id: currentDialog.id, content: data });
                     }}
                   />
                 ) : isNotSupported ? (
@@ -608,20 +631,20 @@ const DesignPage: React.FC<RouteComponentProps<{ dialogId: string; projectId: st
         </div>
       </div>
       <Suspense fallback={<LoadingSpinner />}>
-        {state.showCreateDialogModal && (
+        {showCreateDialogModal && (
           <CreateDialogModal
-            isOpen={state.showCreateDialogModal}
-            onDismiss={() => actions.createDialogCancel()}
+            isOpen={showCreateDialogModal}
+            onDismiss={createDialogCancel}
             onSubmit={handleCreateDialogSubmit}
           />
         )}
-        {state.showAddSkillDialogModal && (
+        {showAddSkillDialogModal && (
           <CreateSkillModal
             editIndex={-1}
-            isOpen={state.showAddSkillDialogModal}
+            isOpen={showAddSkillDialogModal}
             projectId={projectId}
-            skills={state.skills}
-            onDismiss={() => actions.addSkillDialogCancel()}
+            skills={skills}
+            onDismiss={() => addSkillDialogCancel()}
             onSubmit={handleAddSkillDialogSubmit}
           />
         )}

@@ -2,19 +2,32 @@
 // Licensed under the MIT License.
 
 /** @jsx jsx */
+
+import React, { useState, useRef, Fragment, useEffect, useCallback } from 'react';
 import { jsx, css } from '@emotion/core';
-import React, { useState, useRef, Fragment, useContext, useEffect, useCallback } from 'react';
 import { PrimaryButton } from 'office-ui-fabric-react/lib/Button';
 import formatMessage from 'format-message';
 import merge from 'lodash/merge';
+import { useRecoilValue } from 'recoil';
 
 import { DefaultPublishConfig, QnaConfig, BotStatus, LuisConfig } from '../../constants';
+import {
+  botNameState,
+  botStatusState,
+  dialogsState,
+  luFilesState,
+  settingsState,
+  projectIdState,
+  botLoadErrorState,
+  botEndpointsState,
+  dispatcherState,
+} from '../../recoilModel';
+import settingsStorage from '../../utils/dialogSettingStorage';
 import { isAbsHosted } from '../../utils/envUtil';
 import useNotifications from '../../pages/notifications/useNotifications';
 import { navigateTo, openInEmulator } from '../../utils/navigation';
 import { IConfig } from '../../store/types';
 
-import settingsStorage from './../../utils/dialogSettingStorage';
 import { StoreContext } from './../../store';
 import { getReferredLuFiles } from './../../utils/luUtil';
 import { getReferredQnaFiles } from './../../utils/qnaUtil';
@@ -40,12 +53,19 @@ export const botButton = css`
 // -------------------- TestController -------------------- //
 
 export const TestController: React.FC = () => {
-  const { state, actions } = useContext(StoreContext);
   const [modalOpen, setModalOpen] = useState(false);
   const [calloutVisible, setCalloutVisible] = useState(false);
   const botActionRef = useRef(null);
   const notifications = useNotifications();
-  const { botEndpoints, botName, botStatus, dialogs, luFiles, qnaFiles, settings, projectId, botLoadErrorMsg } = state;
+  const botName = useRecoilValue(botNameState);
+  const botStatus = useRecoilValue(botStatusState);
+  const dialogs = useRecoilValue(dialogsState);
+  const luFiles = useRecoilValue(luFilesState);
+  const qnaFiles = useRecoilValue(qnaFilesState);
+  const settings = useRecoilValue(settingsState);
+  const projectId = useRecoilValue(projectIdState);
+  const botLoadErrorMsg = useRecoilValue(botLoadErrorState);
+  const botEndpoints = useRecoilValue(botEndpointsState);
   const {
     setQnASettings,
     publishToTarget,
@@ -54,7 +74,7 @@ export const TestController: React.FC = () => {
     getPublishStatus,
     setBotStatus,
     setSettings,
-  } = actions;
+  } = useRecoilValue(dispatcherState);
   const connected = botStatus === BotStatus.connected;
   const publishing = botStatus === BotStatus.publishing;
   const reloading = botStatus === BotStatus.reloading;
@@ -104,17 +124,17 @@ export const TestController: React.FC = () => {
     const newValue = config;
     const subscriptionKey = newValue.subscriptionKey;
     delete newValue.subscriptionKey;
-    await setSettings(state.projectId, { ...settings, luis: newValue, qna: { subscriptionKey } });
-    await build(newValue.authoringKey, subscriptionKey, state.projectId);
+    await setSettings(projectId, { ...settings, luis: newValue, qna: { subscriptionKey } });
+    await build(newValue.authoringKey, subscriptionKey, projectId);
   }
 
   async function handleLoadBot() {
     setBotStatus(BotStatus.reloading);
-    if (state.settings.qna && Object(state.settings.qna).subscriptionKey) {
-      await setQnASettings(projectId, Object(state.settings.qna).subscriptionKey);
+    if (settings.qna && Object(settings.qna).subscriptionKey) {
+      await setQnASettings(projectId, Object(settings.qna).subscriptionKey);
     }
     const sensitiveSettings = settingsStorage.get(projectId);
-    await publishToTarget(state.projectId, DefaultPublishConfig, { comment: '' }, sensitiveSettings);
+    await publishToTarget(projectId, DefaultPublishConfig, { comment: '' }, sensitiveSettings);
   }
 
   function isConfigComplete(config) {
@@ -153,7 +173,7 @@ export const TestController: React.FC = () => {
   }
 
   function handleErrorButtonClick() {
-    navigateTo(`/bot/${state.projectId}/notifications`);
+    navigateTo(`/bot/${projectId}/notifications`);
   }
 
   async function handleOpenEmulator() {
